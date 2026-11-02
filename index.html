@@ -162,7 +162,7 @@
                         <div class="inline-flex items-center gap-2 px-3 py-1 bg-sky-500/10 border border-sky-400/30 rounded-full text-xs font-bold text-sky-300 uppercase tracking-widest mb-1.5">
                             <i class="fa-solid fa-trophy text-amber-400"></i> Programme Athlétique Officiel
                         </div>
-                        <!-- Status de Synchronisation En Direct -->
+                        <!-- Live Sync Indicator -->
                         <div id="syncStatus" class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-400/30 rounded-full text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1.5">
                             <i class="fa-solid fa-wifi text-[10px] animate-pulse"></i> Direct
                         </div>
@@ -343,7 +343,7 @@
 
     <!-- JS Application Logic -->
     <script>
-        // CONFIGURATION JSONBIN.IO
+        // JSONBIN.IO CONFIGURATION
         const JSONBIN_ID = "6ae90561ffd5d16053a0a584";
         const JSONBIN_KEY = "$2a$10$ELDgUKZQi0FbcSYu2H0QWeFoSIPVrMusoOuSt5rfpZoFstJvDjoju";
         const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_ID}`;
@@ -386,6 +386,7 @@
 
         function updateSyncStatus(status) {
             const syncEl = document.getElementById('syncStatus');
+            if (!syncEl) return;
             if (status === 'saving') {
                 syncEl.className = "inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-400/30 rounded-full text-xs font-bold text-amber-400 uppercase tracking-widest mb-1.5";
                 syncEl.innerHTML = `<i class="fa-solid fa-rotate text-[10px] animate-spin"></i> Enregistrement...`;
@@ -404,14 +405,16 @@
         async function loadData() {
             updateSyncStatus('loading');
             try {
-                const res = await fetch(JSONBIN_URL, {
+                // Bust browser cache with timestamp & no-store
+                const res = await fetch(`${JSONBIN_URL}/latest?t=${Date.now()}`, {
                     method: 'GET',
                     headers: {
                         'X-Master-Key': JSONBIN_KEY
-                    }
+                    },
+                    cache: 'no-store'
                 });
 
-                if (!res.ok) throw new Error('Erreur de réseau');
+                if (!res.ok) throw new Error('Network error');
 
                 const data = await res.json();
                 if (data.record && Array.isArray(data.record) && data.record.length > 0) {
@@ -422,7 +425,7 @@
                 }
                 updateSyncStatus('success');
             } catch (err) {
-                console.error("Erreur lors du chargement des données API JSONBin:", err);
+                console.error("Error loading JSONBin API data:", err);
                 const saved = localStorage.getItem('avalanches_21_teams_data');
                 if (saved) {
                     try { teams = JSON.parse(saved); } catch (e) { teams = INITIAL_TEAMS; }
@@ -451,10 +454,10 @@
                     body: JSON.stringify(teams)
                 });
 
-                if (!res.ok) throw new Error('Erreur de sauvegarde');
+                if (!res.ok) throw new Error('Save error');
                 updateSyncStatus('success');
             } catch (err) {
-                console.error("Erreur de sauvegarde sur JSONBin:", err);
+                console.error("Error saving to JSONBin:", err);
                 updateSyncStatus('error');
             }
         }
@@ -943,6 +946,14 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             loadData();
+
+            // Background polling: check JSONBin every 10 seconds unless teacher panel is open
+            setInterval(() => {
+                const isAdminOpen = !document.getElementById('adminModal').classList.contains('hidden');
+                if (!isAdminOpen) {
+                    loadData();
+                }
+            }, 10000);
         });
     </script>
 </body>
